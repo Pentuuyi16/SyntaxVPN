@@ -102,7 +102,7 @@
 
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(5, 1fr);
             gap: 16px;
             margin-bottom: 32px;
         }
@@ -291,6 +291,7 @@
         <div class="tabs">
             <button class="tab active" onclick="showSection('stats')">Статистика</button>
             <button class="tab" onclick="showSection('users')">Пользователи</button>
+            <button class="tab" onclick="showSection('connections')">Подключения</button>
             <button class="tab" onclick="showSection('pool')">UUID Пул</button>
         </div>
 
@@ -304,6 +305,10 @@
                 <div class="stat-card">
                     <div class="label">Активные подписки</div>
                     <div class="value" id="activeSubs">—</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Онлайн</div>
+                    <div class="value" style="color:var(--green)" id="onlineCount">—</div>
                 </div>
                 <div class="stat-card">
                     <div class="label">Доход (₽)</div>
@@ -347,6 +352,27 @@
             </div>
         </div>
 
+        <!-- Подключения -->
+        <div id="connections" class="section">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Устройства на ключ</h2>
+                    <button class="refresh-btn" onclick="loadData()">Обновить</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>UUID</th>
+                            <th>Пользователь</th>
+                            <th>Username</th>
+                            <th>Устройств</th>
+                        </tr>
+                    </thead>
+                    <tbody id="connectionsTable"></tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- UUID Пул -->
         <div id="pool" class="section">
             <div class="panel">
@@ -386,6 +412,7 @@
                 document.getElementById('activeSubs').textContent = data.active_subs;
                 document.getElementById('totalIncome').textContent = data.total_income.toLocaleString();
                 document.getElementById('freeUuids').textContent = data.free_uuids;
+                document.getElementById('onlineCount').textContent = data.online;
 
                 // Серверы
                 let serversHtml = '';
@@ -424,6 +451,23 @@
                         </tr>`;
                 }
                 document.getElementById('usersTable').innerHTML = usersHtml || '<tr><td colspan="6" style="text-align:center;color:var(--text2)">Нет данных</td></tr>';
+
+                // Подключения
+                const connResp = await fetch('/admin/api/connections');
+                const conns = await connResp.json();
+
+                let connHtml = '';
+                for (const c of conns) {
+                    const color = c.devices > 2 ? 'var(--red)' : c.devices > 0 ? 'var(--green)' : 'var(--text2)';
+                    connHtml += `
+                        <tr>
+                            <td class="mono uuid-short">${c.uuid}</td>
+                            <td>${c.full_name || '—'}</td>
+                            <td>${c.username ? '@' + c.username : '—'}</td>
+                            <td style="color:${color};font-weight:700" class="mono">${c.devices}</td>
+                        </tr>`;
+                }
+                document.getElementById('connectionsTable').innerHTML = connHtml || '<tr><td colspan="4" style="text-align:center;color:var(--text2)">Нет активных подключений</td></tr>';
 
                 // UUID пул
                 const poolResp = await fetch('/admin/api/pool');

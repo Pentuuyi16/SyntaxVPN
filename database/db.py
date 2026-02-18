@@ -231,3 +231,23 @@ async def get_admin_pool() -> list:
             }
             for r in rows
         ]
+    
+async def get_admin_connections() -> list:
+    """Получить подключения по ключам с данными пользователей."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("""
+            SELECT up.uuid, u.telegram_id, u.username, u.full_name
+            FROM uuid_pool up
+            LEFT JOIN users u ON up.telegram_id = u.telegram_id
+            WHERE up.is_used = 1
+        """)
+        rows = await cursor.fetchall()
+        return [
+            {
+                "uuid": r[0],
+                "telegram_id": r[1],
+                "username": r[2],
+                "full_name": r[3],
+            }
+            for r in rows
+        ]

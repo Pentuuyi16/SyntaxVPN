@@ -9,7 +9,7 @@ from database.db import init_db
 from handlers import start
 from handlers import payment
 from handlers.webhook import yookassa_webhook
-from handlers.admin import admin_panel, admin_stats, admin_users, admin_pool
+from handlers.admin import admin_panel, admin_stats, admin_users, admin_pool, admin_connections
 
 
 async def main():
@@ -35,6 +35,7 @@ async def main():
     app.router.add_get("/admin/api/stats", admin_stats)
     app.router.add_get("/admin/api/users", admin_users)
     app.router.add_get("/admin/api/pool", admin_pool)
+    app.router.add_get("/admin/api/connections", admin_connections)
 
     runner = web.AppRunner(app)
     await runner.setup()
