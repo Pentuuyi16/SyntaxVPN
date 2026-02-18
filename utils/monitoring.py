@@ -3,7 +3,7 @@ from config.settings import VPN_SERVERS
 
 
 def get_connections(server_name: str) -> dict:
-    """Получить количество устройств на каждый ключ."""
+    """Получить количество устройств на каждый ключ (за последние 5 минут)."""
     server = VPN_SERVERS[server_name]
     try:
         ssh = paramiko.SSHClient()
@@ -15,8 +15,10 @@ def get_connections(server_name: str) -> dict:
         )
 
         cmd = (
-            "awk '{ip=$4; gsub(/:[0-9]+$/,\"\",ip); email=$NF} "
-            "email!=\"\"{a[email][ip]=1} "
+            "awk -v cutoff=$(date -d '5 minutes ago' '+%Y/%m/%d %H:%M:%S') '"
+            "$1\" \"$2 >= cutoff {"
+            "  ip=$4; gsub(/:[0-9]+$/,\"\",ip); email=$NF"
+            "} email!=\"\"{a[email][ip]=1} "
             "END{for(e in a){n=0; for(i in a[e])n++; print e,n}}' "
             "/var/log/xray/access.log"
         )
