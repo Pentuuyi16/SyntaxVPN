@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SyntaxVPN — Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --surface2: #1a1a26;
+            --border: #2a2a3a;
+            --text: #e4e4ef;
+            --text2: #8888a0;
+            --accent: #6c5ce7;
+            --accent2: #a29bfe;
+            --green: #00e676;
+            --red: #ff5252;
+            --orange: #ffab40;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Manrope', sans-serif;
+            min-height: 100vh;
+        }
+
+        .header {
+            padding: 24px 40px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--accent2);
+        }
+
+        .header .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text2);
+        }
+
+        .header .status .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 40px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 32px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text2);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            font-family: 'Manrope', sans-serif;
+            background: none;
+            border-top: none;
+            border-left: none;
+            border-right: none;
+        }
+
+        .tab:hover { color: var(--text); }
+        .tab.active {
+            color: var(--accent2);
+            border-bottom-color: var(--accent);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .stat-card .label {
+            font-size: 12px;
+            color: var(--text2);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .stat-card .value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .stat-card .sub {
+            font-size: 12px;
+            color: var(--text2);
+            margin-top: 4px;
+        }
+
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-header h2 {
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .panel-header .badge {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: var(--surface2);
+            color: var(--text2);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 12px 20px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text2);
+            background: var(--surface2);
+            font-weight: 600;
+        }
+
+        td {
+            padding: 12px 20px;
+            font-size: 13px;
+            border-top: 1px solid var(--border);
+        }
+
+        tr:hover td { background: var(--surface2); }
+
+        .tag {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .tag-active { background: rgba(0,230,118,0.15); color: var(--green); }
+        .tag-expired { background: rgba(255,82,82,0.15); color: var(--red); }
+        .tag-free { background: rgba(108,92,231,0.15); color: var(--accent2); }
+        .tag-used { background: rgba(255,171,64,0.15); color: var(--orange); }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+        }
+
+        .uuid-short {
+            max-width: 180px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .section { display: none; }
+        .section.active { display: block; }
+
+        .server-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        .server-bar:first-child { border-top: none; }
+
+        .server-name {
+            font-weight: 600;
+            font-size: 14px;
+            min-width: 140px;
+        }
+
+        .progress-bar {
+            flex: 1;
+            height: 8px;
+            background: var(--surface2);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s;
+        }
+
+        .server-count {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            color: var(--text2);
+            min-width: 70px;
+            text-align: right;
+        }
+
+        .refresh-btn {
+            padding: 6px 14px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text2);
+            font-size: 12px;
+            cursor: pointer;
+            font-family: 'Manrope', sans-serif;
+            transition: all 0.2s;
+        }
+
+        .refresh-btn:hover {
+            background: var(--border);
+            color: var(--text);
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .container { padding: 20px; }
+            .header { padding: 16px 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>SyntaxVPN Admin</h1>
+        <div class="status">
+            <div class="dot"></div>
+            <span id="lastUpdate">Загрузка...</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="tabs">
+            <button class="tab active" onclick="showSection('stats')">Статистика</button>
+            <button class="tab" onclick="showSection('users')">Пользователи</button>
+            <button class="tab" onclick="showSection('pool')">UUID Пул</button>
+        </div>
+
+        <!-- Статистика -->
+        <div id="stats" class="section active">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="label">Пользователи</div>
+                    <div class="value" id="totalUsers">—</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Активные подписки</div>
+                    <div class="value" id="activeSubs">—</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Доход (₽)</div>
+                    <div class="value" id="totalIncome">—</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">UUID свободно</div>
+                    <div class="value" id="freeUuids">—</div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Серверы</h2>
+                    <button class="refresh-btn" onclick="loadData()">Обновить</button>
+                </div>
+                <div id="serversList"></div>
+            </div>
+        </div>
+
+        <!-- Пользователи -->
+        <div id="users" class="section">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Пользователи и подписки</h2>
+                    <span class="badge" id="usersCount">0</span>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Telegram ID</th>
+                            <th>Имя</th>
+                            <th>Username</th>
+                            <th>Тариф</th>
+                            <th>Статус</th>
+                            <th>Истекает</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- UUID Пул -->
+        <div id="pool" class="section">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>UUID Пул</h2>
+                    <span class="badge" id="poolCount">0</span>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>UUID</th>
+                            <th>Сервер</th>
+                            <th>Статус</th>
+                            <th>Telegram ID</th>
+                        </tr>
+                    </thead>
+                    <tbody id="poolTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showSection(name) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(name).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        async function loadData() {
+            try {
+                const resp = await fetch('/admin/api/stats');
+                const data = await resp.json();
+
+                document.getElementById('totalUsers').textContent = data.total_users;
+                document.getElementById('activeSubs').textContent = data.active_subs;
+                document.getElementById('totalIncome').textContent = data.total_income.toLocaleString();
+                document.getElementById('freeUuids').textContent = data.free_uuids;
+
+                // Серверы
+                let serversHtml = '';
+                for (const srv of data.servers) {
+                    const pct = srv.max > 0 ? (srv.used / srv.max * 100) : 0;
+                    let color = 'var(--green)';
+                    if (pct > 70) color = 'var(--orange)';
+                    if (pct > 90) color = 'var(--red)';
+                    serversHtml += `
+                        <div class="server-bar">
+                            <div class="server-name">${srv.name}</div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width:${pct}%;background:${color}"></div>
+                            </div>
+                            <div class="server-count">${srv.used} / ${srv.max}</div>
+                        </div>`;
+                }
+                document.getElementById('serversList').innerHTML = serversHtml;
+
+                // Пользователи
+                const usersResp = await fetch('/admin/api/users');
+                const users = await usersResp.json();
+                document.getElementById('usersCount').textContent = users.length;
+
+                let usersHtml = '';
+                for (const u of users) {
+                    const tag = u.is_active ? '<span class="tag tag-active">Активна</span>' : '<span class="tag tag-expired">Истекла</span>';
+                    usersHtml += `
+                        <tr>
+                            <td class="mono">${u.telegram_id}</td>
+                            <td>${u.full_name || '—'}</td>
+                            <td>${u.username ? '@' + u.username : '—'}</td>
+                            <td>${u.plan_id || '—'}</td>
+                            <td>${tag}</td>
+                            <td class="mono">${u.end_date ? u.end_date.split('T')[0] : '—'}</td>
+                        </tr>`;
+                }
+                document.getElementById('usersTable').innerHTML = usersHtml || '<tr><td colspan="6" style="text-align:center;color:var(--text2)">Нет данных</td></tr>';
+
+                // UUID пул
+                const poolResp = await fetch('/admin/api/pool');
+                const pool = await poolResp.json();
+                document.getElementById('poolCount').textContent = pool.length;
+
+                let poolHtml = '';
+                for (const p of pool) {
+                    const tag = p.is_used ? '<span class="tag tag-used">Занят</span>' : '<span class="tag tag-free">Свободен</span>';
+                    poolHtml += `
+                        <tr>
+                            <td class="mono uuid-short">${p.uuid}</td>
+                            <td>${p.server_name}</td>
+                            <td>${tag}</td>
+                            <td class="mono">${p.telegram_id || '—'}</td>
+                        </tr>`;
+                }
+                document.getElementById('poolTable').innerHTML = poolHtml || '<tr><td colspan="4" style="text-align:center;color:var(--text2)">Нет данных</td></tr>';
+
+                document.getElementById('lastUpdate').textContent = 'Обновлено: ' + new Date().toLocaleTimeString('ru');
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        loadData();
+        setInterval(loadData, 30000);
+    </script>
+</body>
+</html>

@@ -9,6 +9,7 @@ from database.db import init_db
 from handlers import start
 from handlers import payment
 from handlers.webhook import yookassa_webhook
+from handlers.admin import admin_panel, admin_stats, admin_users, admin_pool
 
 
 async def main():
@@ -20,17 +21,20 @@ async def main():
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher()
 
-    # Подключаем роутеры
     dp.include_router(start.router)
     dp.include_router(payment.router)
 
-    # Инициализация БД
     await init_db()
 
-    # Webhook сервер для ЮКассы
     app = web.Application()
     app["bot"] = bot
     app.router.add_post(WEBHOOK_PATH, yookassa_webhook)
+
+    # Админка
+    app.router.add_get("/admin", admin_panel)
+    app.router.add_get("/admin/api/stats", admin_stats)
+    app.router.add_get("/admin/api/users", admin_users)
+    app.router.add_get("/admin/api/pool", admin_pool)
 
     runner = web.AppRunner(app)
     await runner.setup()

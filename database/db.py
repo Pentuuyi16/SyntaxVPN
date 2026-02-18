@@ -139,3 +139,95 @@ async def get_active_subscription(telegram_id: int) -> dict | None:
         if row:
             return dict(row)
         return None
+    
+async def get_admin_stats() -> dict:
+    """Статистика для админки."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Всего пользователей
+        cursor = await db.execute("SELECT COUNT(*) FROM users")
+        total_users = (await cursor.fetchone())[0]
+
+        # Активные подписки
+        cursor = await db.execute("SELECT COUNT(*) FROM subscriptions WHERE is_active = 1")
+        active_subs = (await cursor.fetchone())[0]
+
+        # Доход
+        cursor = await db.execute("""
+            SELECT COALESCE(SUM(
+                CASE plan_id
+                    WHEN 'plan_1' THEN 99
+                    WHEN 'plan_3' THEN 199
+                    WHEN 'plan_6' THEN 499
+                    WHEN 'plan_12' THEN 999
+                    WHEN 'plan_test' THEN 1
+                    ELSE 0
+                END
+            ), 0) FROM subscriptions
+        """)
+        total_income = (await cursor.fetchone())[0]
+
+        # Свободные UUID
+        cursor = await db.execute("SELECT COUNT(*) FROM uuid_pool WHERE is_used = 0")
+        free_uuids = (await cursor.fetchone())[0]
+
+        # Серверы
+        cursor = await db.execute("""
+            SELECT server_name,
+                   SUM(CASE WHEN is_used = 1 THEN 1 ELSE 0 END) as used,
+                   COUNT(*) as total
+            FROM uuid_pool GROUP BY server_name
+        """)
+        servers = []
+        for row in await cursor.fetchall():
+            servers.append({"name": row[0], "used": row[1], "max": row[2]})
+
+        return {
+            "total_users": total_users,
+            "active_subs": active_subs,
+            "total_income": total_income,
+            "free_uuids": free_uuids,
+            "servers": servers,
+        }
+
+
+async def get_admin_users() -> list:
+    """Список пользователей с подписками."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("""
+            SELECT u.telegram_id, u.username, u.full_name,
+                   s.plan_id, s.is_active, s.end_date
+            FROM users u
+            LEFT JOIN subscriptions s ON u.telegram_id = s.telegram_id
+                AND s.id = (SELECT MAX(id) FROM subscriptions WHERE telegram_id = u.telegram_id)
+            ORDER BY u.created_at DESC
+        """)
+        rows = await cursor.fetchall()
+        return [
+            {
+                "telegram_id": r[0],
+                "username": r[1],
+                "full_name": r[2],
+                "plan_id": r[3],
+                "is_active": r[4],
+                "end_date": r[5],
+            }
+            for r in rows
+        ]
+
+
+async def get_admin_pool() -> list:
+    """UUID пул для админки."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "SELECT uuid, server_name, is_used, telegram_id FROM uuid_pool ORDER BY is_used DESC, id LIMIT 200"
+        )
+        rows = await cursor.fetchall()
+        return [
+            {
+                "uuid": r[0],
+                "server_name": r[1],
+                "is_used": r[2],
+                "telegram_id": r[3],
+            }
+            for r in rows
+        ]
