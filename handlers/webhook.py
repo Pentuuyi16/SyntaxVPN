@@ -3,9 +3,11 @@ import logging
 
 from aiohttp import web
 from aiogram import Bot
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from database.db import activate_subscription
 from utils.texts import PLAN_DETAILS
+from utils.vpn import generate_uuid, generate_vless_link, add_client_to_server
 
 logger = logging.getLogger(__name__)
 
@@ -37,23 +39,38 @@ async def yookassa_webhook(request: web.Request) -> web.Response:
         logger.warning("Неизвестный тариф: %s", plan_id)
         return web.Response(status=200)
 
-    # Активируем подписку в БД
-    await activate_subscription(telegram_id, plan_id)
+    # Генерируем ключ
+    user_uuid = generate_uuid()
+
+    # Добавляем на VPN-сервер
+    success = add_client_to_server(user_uuid, "germany")
+    if not success:
+        logger.error("Не удалось добавить клиента на сервер: %s", telegram_id)
+        return web.Response(status=200)
+
+    # Генерируем VLESS ссылку
+    vless_key = generate_vless_link(user_uuid, "germany", "🇩🇪 SyntaxVPN Germany")
+
+    # Сохраняем в БД
+    await activate_subscription(telegram_id, plan_id, user_uuid, vless_key)
 
     # Уведомляем пользователя
     bot: Bot = request.app["bot"]
     await bot.send_message(
         chat_id=telegram_id,
         text=(
-            "✅ Оплата прошла успешно!\n\n"
-            f"<blockquote>"
-            f"Тариф: {plan['name']}\n"
-            f"Лимит подключений: {plan['connections']}"
-            f"</blockquote>\n\n"
-            "Нажмите «🔐 Мой ключ» в главном меню для получения ключа подключения."
+            "Готово! Оплата подтверждена ✅\n\n"
+            "Спасибо, что выбрали нас — это много значит для нашей команды. "
+            "С любовью, SyntaxVPN 🤍\n\n"
+            f"<blockquote>Ваш ключ:\n{vless_key}</blockquote>"
         ),
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📲 Добавить VPN в приложение", callback_data="add_to_app")],
+            [InlineKeyboardButton(text="📥 Скачать приложение", callback_data="download_app")],
+            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_to_main")],
+        ]),
         parse_mode="HTML",
     )
 
-    logger.info("Оплата: user=%s, plan=%s", telegram_id, plan_id)
+    logger.info("Оплата: user=%s, plan=%s, uuid=%s", telegram_id, plan_id, user_uuid)
     return web.Response(status=200)
