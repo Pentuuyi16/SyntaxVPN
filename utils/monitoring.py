@@ -2,72 +2,59 @@ import paramiko
 from config.settings import VPN_SERVERS
 
 
-def get_connections(server_name: str) -> dict:
-    """Получить количество устройств на каждый ключ (за последние 5 минут)."""
+def _ssh_command(server_name: str, cmd: str) -> str:
+    """Выполнить SSH команду."""
     server = VPN_SERVERS[server_name]
-    try:
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(
-            hostname=server["host"],
-            username=server["ssh_user"],
-            password=server["ssh_password"],
-        )
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.connect(
+        hostname=server["host"],
+        username=server["ssh_user"],
+        password=server["ssh_password"],
+    )
+    stdin, stdout, stderr = ssh.exec_command(cmd)
+    result = stdout.read().decode().strip()
+    ssh.close()
+    return result
 
-        cmd = (
-            "awk -v cutoff=$(date -d '5 minutes ago' '+%Y/%m/%d %H:%M:%S') '"
-            "$1\" \"$2 >= cutoff {"
-            "  ip=$4; gsub(/:[0-9]+$/,\"\",ip); email=$NF"
-            "} email!=\"\"{a[email][ip]=1} "
-            "END{for(e in a){n=0; for(i in a[e])n++; print e,n}}' "
-            "/var/log/xray/access.log"
-        )
 
-        stdin, stdout, stderr = ssh.exec_command(cmd)
-        result = stdout.read().decode().strip()
-        ssh.close()
+def get_active_ips(server_name: str) -> list:
+    """Получить список активных IP подключённых к VPN."""
+    cmd = (
+        "ss -tnp | grep xray | grep ESTAB | "
+        "awk '{if ($4 ~ /:443$/) print $5}' | "
+        "rev | cut -d: -f2- | rev | "
+        "sed 's/\\[::ffff://;s/\\]//' | sort -u"
+    )
+    result = _ssh_command(server_name, cmd)
+    if not result:
+        return []
+    return [ip.strip() for ip in result.split("\n") if ip.strip()]
 
-        connections = {}
-        for line in result.split("\n"):
-            if line.strip():
-                parts = line.strip().split()
-                if len(parts) == 2:
-                    connections[parts[0]] = int(parts[1])
 
-        return connections
-    except Exception as e:
-        print(f"Ошибка мониторинга: {e}")
+def get_connections(server_name: str) -> dict:
+    """Получить количество устройств на каждый ключ (только активные)."""
+    active_ips = get_active_ips(server_name)
+    if not active_ips:
         return {}
+
+    # Для каждого активного IP находим email в логе
+    email_ips = {}
+    for ip in active_ips:
+        cmd = f"grep '{ip}' /var/log/xray/access.log | tail -1 | grep -oP 'email: \\K\\S+'"
+        result = _ssh_command(server_name, cmd)
+        if result:
+            email = result.strip()
+            if email not in email_ips:
+                email_ips[email] = set()
+            email_ips[email].add(ip)
+
+    return {email: len(ips) for email, ips in email_ips.items()}
 
 
 def get_online_count(server_name: str) -> int:
-    """Получить количество онлайн пользователей по активным соединениям."""
-    server = VPN_SERVERS[server_name]
-    try:
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(
-            hostname=server["host"],
-            username=server["ssh_user"],
-            password=server["ssh_password"],
-        )
-
-        # Считаем уникальные IP с активными соединениями на порт 443
-        # Только ESTABLISHED с данными (не зависшие)
-        cmd = (
-            "ss -tnp state established '( dport = :443 or sport = :443 )' | "
-            "grep xray | awk '{print $5}' | "
-            "rev | cut -d: -f2- | rev | sort -u | wc -l"
-        )
-
-        stdin, stdout, stderr = ssh.exec_command(cmd)
-        result = stdout.read().decode().strip()
-        ssh.close()
-
-        return int(result) if result else 0
-    except Exception as e:
-        print(f"Ошибка мониторинга: {e}")
-        return 0
+    """Получить количество онлайн пользователей."""
+    return len(get_active_ips(server_name))
 
 
 def get_all_servers_online() -> dict:
@@ -79,7 +66,7 @@ def get_all_servers_online() -> dict:
 
 
 def get_best_server() -> str | None:
-    """Найти сервер с наименьшей нагрузкой и свободными местами."""
+    """Найти сервер с наименьшей нагрузкой."""
     online = get_all_servers_online()
     best = None
     min_load = float("inf")
