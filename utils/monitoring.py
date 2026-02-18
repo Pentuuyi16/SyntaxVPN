@@ -15,9 +15,8 @@ def get_connections(server_name: str) -> dict:
         )
 
         cmd = (
-            "awk '{"
-            'ip=$3; gsub(/.*from /,"",ip); gsub(/:[0-9]+$/,"",ip); email=$NF'
-            "} email{a[email][ip]=1} "
+            "awk '{ip=$4; gsub(/:[0-9]+$/,\"\",ip); email=$NF} "
+            "email!=\"\"{a[email][ip]=1} "
             "END{for(e in a){n=0; for(i in a[e])n++; print e,n}}' "
             "/var/log/xray/access.log"
         )
@@ -40,7 +39,7 @@ def get_connections(server_name: str) -> dict:
 
 
 def get_online_count(server_name: str) -> int:
-    """Получить количество онлайн пользователей."""
+    """Получить количество онлайн пользователей по активным соединениям."""
     server = VPN_SERVERS[server_name]
     try:
         ssh = paramiko.SSHClient()
@@ -51,9 +50,11 @@ def get_online_count(server_name: str) -> int:
             password=server["ssh_password"],
         )
 
+        # Считаем уникальные IP с активными соединениями на порт 443
+        # Только ESTABLISHED с данными (не зависшие)
         cmd = (
-            "ss -tnp | grep xray | grep ESTAB | "
-            "awk '{if ($4 ~ /:443$/) print $5}' | "
+            "ss -tnp state established '( dport = :443 or sport = :443 )' | "
+            "grep xray | awk '{print $5}' | "
             "rev | cut -d: -f2- | rev | sort -u | wc -l"
         )
 
