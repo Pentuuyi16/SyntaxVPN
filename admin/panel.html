@@ -250,7 +250,7 @@
             font-family: 'JetBrains Mono', monospace;
             font-size: 13px;
             color: var(--text2);
-            min-width: 70px;
+            min-width: 140px;
             text-align: right;
         }
 
@@ -417,17 +417,18 @@
                 // Серверы
                 let serversHtml = '';
                 for (const srv of data.servers) {
-                    const pct = srv.max > 0 ? (srv.used / srv.max * 100) : 0;
+                    const pct = srv.max > 0 ? (srv.online / srv.max * 100) : 0;
                     let color = 'var(--green)';
                     if (pct > 70) color = 'var(--orange)';
                     if (pct > 90) color = 'var(--red)';
+                    const status = srv.online >= srv.max ? '🔴 ПОЛНЫЙ' : '🟢 OK';
                     serversHtml += `
                         <div class="server-bar">
                             <div class="server-name">${srv.name}</div>
                             <div class="progress-bar">
                                 <div class="progress-fill" style="width:${pct}%;background:${color}"></div>
                             </div>
-                            <div class="server-count">${srv.used} / ${srv.max}</div>
+                            <div class="server-count">${srv.online} / ${srv.max} ${status}</div>
                         </div>`;
                 }
                 document.getElementById('serversList').innerHTML = serversHtml;

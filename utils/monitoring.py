@@ -65,3 +65,28 @@ def get_online_count(server_name: str) -> int:
     except Exception as e:
         print(f"Ошибка мониторинга: {e}")
         return 0
+
+
+def get_all_servers_online() -> dict:
+    """Получить онлайн по всем серверам."""
+    result = {}
+    for name in VPN_SERVERS:
+        result[name] = get_online_count(name)
+    return result
+
+
+def get_best_server() -> str | None:
+    """Найти сервер с наименьшей нагрузкой и свободными местами."""
+    online = get_all_servers_online()
+    best = None
+    min_load = float("inf")
+
+    for name, server in VPN_SERVERS.items():
+        count = online.get(name, 0)
+        max_users = server.get("max_users", 80)
+
+        if count < max_users and count < min_load:
+            min_load = count
+            best = name
+
+    return best

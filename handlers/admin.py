@@ -2,8 +2,9 @@ import os
 
 from aiohttp import web
 
+from config.settings import VPN_SERVERS
 from database.db import get_admin_stats, get_admin_users, get_admin_pool, get_admin_connections
-from utils.monitoring import get_connections, get_online_count
+from utils.monitoring import get_connections, get_all_servers_online
 
 ADMIN_HTML = os.path.join(os.path.dirname(os.path.dirname(__file__)), "admin", "panel.html")
 
@@ -18,7 +19,20 @@ async def admin_panel(request: web.Request) -> web.Response:
 async def admin_stats(request: web.Request) -> web.Response:
     """API статистики."""
     data = await get_admin_stats()
-    data["online"] = get_online_count("germany")
+    online = get_all_servers_online()
+
+    total_online = sum(online.values())
+    data["online"] = total_online
+
+    servers = []
+    for name, server in VPN_SERVERS.items():
+        servers.append({
+            "name": server.get("label", name),
+            "online": online.get(name, 0),
+            "max": server.get("max_users", 80),
+        })
+    data["servers"] = servers
+
     return web.json_response(data)
 
 

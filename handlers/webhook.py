@@ -8,6 +8,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from database.db import get_free_uuid, assign_uuid, activate_subscription
 from utils.texts import PLAN_DETAILS
 from utils.vpn import generate_vless_link
+from utils.monitoring import get_best_server
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +40,21 @@ async def yookassa_webhook(request: web.Request) -> web.Response:
         logger.warning("Неизвестный тариф: %s", plan_id)
         return web.Response(status=200)
 
-    # Берём свободный UUID из пула
-    user_uuid = await get_free_uuid("germany")
+    # Находим лучший сервер
+    server_name = get_best_server()
+    if not server_name:
+        logger.error("Все серверы переполнены!")
+        bot: Bot = request.app["bot"]
+        await bot.send_message(
+            chat_id=telegram_id,
+            text="⚠️ Оплата прошла, но все серверы заняты. Обратитесь в поддержку.",
+        )
+        return web.Response(status=200)
+
+    # Берём свободный UUID из пула этого сервера
+    user_uuid = await get_free_uuid(server_name)
     if not user_uuid:
-        logger.error("Нет свободных UUID для сервера germany")
+        logger.error("Нет свободных UUID для сервера %s", server_name)
         bot: Bot = request.app["bot"]
         await bot.send_message(
             chat_id=telegram_id,
@@ -54,7 +66,9 @@ async def yookassa_webhook(request: web.Request) -> web.Response:
     await assign_uuid(user_uuid, telegram_id)
 
     # Генерируем VLESS ссылку
-    vless_key = generate_vless_link(user_uuid, "germany", "🇩🇪 SyntaxVPN Germany")
+    from config.settings import VPN_SERVERS
+    label = VPN_SERVERS[server_name].get("label", server_name)
+    vless_key = generate_vless_link(user_uuid, server_name, f"SyntaxVPN {label}")
 
     # Сохраняем подписку
     await activate_subscription(telegram_id, plan_id, user_uuid, vless_key)
@@ -77,5 +91,5 @@ async def yookassa_webhook(request: web.Request) -> web.Response:
         parse_mode="HTML",
     )
 
-    logger.info("Оплата: user=%s, plan=%s, uuid=%s", telegram_id, plan_id, user_uuid)
+    logger.info("Оплата: user=%s, plan=%s, server=%s, uuid=%s", telegram_id, plan_id, server_name, user_uuid)
     return web.Response(status=200)
