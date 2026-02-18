@@ -37,6 +37,15 @@ async def init_db():
                 FOREIGN KEY (telegram_id) REFERENCES users(telegram_id)
             )
         """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS uuid_pool (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT UNIQUE NOT NULL,
+                server_name TEXT NOT NULL,
+                is_used INTEGER DEFAULT 0,
+                telegram_id INTEGER DEFAULT NULL
+            )
+        """)
         await db.commit()
 
 
@@ -52,6 +61,53 @@ async def add_user(telegram_id: int, username: str | None, full_name: str) -> bo
             return True
         except aiosqlite.IntegrityError:
             return False
+
+
+async def get_free_uuid(server_name: str) -> str | None:
+    """Получить свободный UUID из пула."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "SELECT uuid FROM uuid_pool WHERE server_name = ? AND is_used = 0 LIMIT 1",
+            (server_name,),
+        )
+        row = await cursor.fetchone()
+        if row:
+            return row[0]
+        return None
+
+
+async def assign_uuid(uuid: str, telegram_id: int):
+    """Пометить UUID как занятый."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE uuid_pool SET is_used = 1, telegram_id = ? WHERE uuid = ?",
+            (telegram_id, uuid),
+        )
+        await db.commit()
+
+
+async def release_uuid(uuid: str):
+    """Освободить UUID."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE uuid_pool SET is_used = 0, telegram_id = NULL WHERE uuid = ?",
+            (uuid,),
+        )
+        await db.commit()
+
+
+async def load_uuids_to_pool(uuids: list[str], server_name: str):
+    """Загрузить UUID в пул."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        for uuid in uuids:
+            try:
+                await db.execute(
+                    "INSERT INTO uuid_pool (uuid, server_name) VALUES (?, ?)",
+                    (uuid, server_name),
+                )
+            except aiosqlite.IntegrityError:
+                pass
+        await db.commit()
 
 
 async def activate_subscription(telegram_id: int, plan_id: str, user_uuid: str, vless_key: str):

@@ -5,9 +5,9 @@ from aiohttp import web
 from aiogram import Bot
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-from database.db import activate_subscription
+from database.db import get_free_uuid, assign_uuid, activate_subscription
 from utils.texts import PLAN_DETAILS
-from utils.vpn import generate_uuid, generate_vless_link, add_client_to_server
+from utils.vpn import generate_vless_link
 
 logger = logging.getLogger(__name__)
 
@@ -39,19 +39,24 @@ async def yookassa_webhook(request: web.Request) -> web.Response:
         logger.warning("Неизвестный тариф: %s", plan_id)
         return web.Response(status=200)
 
-    # Генерируем ключ
-    user_uuid = generate_uuid()
-
-    # Добавляем на VPN-сервер
-    success = add_client_to_server(user_uuid, "germany")
-    if not success:
-        logger.error("Не удалось добавить клиента на сервер: %s", telegram_id)
+    # Берём свободный UUID из пула
+    user_uuid = await get_free_uuid("germany")
+    if not user_uuid:
+        logger.error("Нет свободных UUID для сервера germany")
+        bot: Bot = request.app["bot"]
+        await bot.send_message(
+            chat_id=telegram_id,
+            text="⚠️ Оплата прошла, но все места заняты. Обратитесь в поддержку.",
+        )
         return web.Response(status=200)
+
+    # Помечаем UUID как занятый
+    await assign_uuid(user_uuid, telegram_id)
 
     # Генерируем VLESS ссылку
     vless_key = generate_vless_link(user_uuid, "germany", "🇩🇪 SyntaxVPN Germany")
 
-    # Сохраняем в БД
+    # Сохраняем подписку
     await activate_subscription(telegram_id, plan_id, user_uuid, vless_key)
 
     # Уведомляем пользователя
