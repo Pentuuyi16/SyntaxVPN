@@ -74,6 +74,7 @@ async def yookassa_webhook(request: web.Request) -> web.Response:
     await activate_subscription(telegram_id, plan_id, user_uuid, vless_key)
 
     # Уведомляем пользователя
+    sub_url = f"https://syntax-vpn.tech/sub/{user_uuid}"
     bot: Bot = request.app["bot"]
     await bot.send_message(
         chat_id=telegram_id,
@@ -81,10 +82,11 @@ async def yookassa_webhook(request: web.Request) -> web.Response:
             "Готово! Оплата подтверждена ✅\n\n"
             "Спасибо, что выбрали нас — это много значит для нашей команды. "
             "С любовью, SyntaxVPN 🤍\n\n"
-            f"<blockquote>Ваш ключ:\n{vless_key}</blockquote>"
+            f"<blockquote>Ваша подписка:\n{sub_url}</blockquote>"
         ),
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📲 Добавить VPN в приложение", callback_data="add_to_app")],
+            [InlineKeyboardButton(text="📲 Добавить в приложение", url=f"happ://add?url={sub_url}")],
+            [InlineKeyboardButton(text="📋 Скопировать ссылку", callback_data=f"copy_sub_{user_uuid}")],
             [InlineKeyboardButton(text="📥 Скачать приложение", callback_data="download_app")],
             [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_to_main")],
         ]),

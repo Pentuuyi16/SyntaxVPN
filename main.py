@@ -10,6 +10,7 @@ from handlers import start
 from handlers import payment
 from handlers.webhook import yookassa_webhook
 from handlers.admin import admin_panel, admin_stats, admin_users, admin_pool, admin_connections
+from handlers.subscription import subscription_handler
 
 
 async def main():
@@ -29,6 +30,9 @@ async def main():
     app = web.Application()
     app["bot"] = bot
     app.router.add_post(WEBHOOK_PATH, yookassa_webhook)
+
+    # Подписка
+    app.router.add_get("/sub/{uuid}", subscription_handler)
 
     # Админка
     app.router.add_get("/admin", admin_panel)

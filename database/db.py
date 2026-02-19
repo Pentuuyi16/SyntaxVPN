@@ -251,3 +251,16 @@ async def get_admin_connections() -> list:
             }
             for r in rows
         ]
+    
+async def get_subscription_by_uuid(uuid: str) -> dict | None:
+    """Получить подписку по UUID."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM subscriptions WHERE uuid = ? ORDER BY id DESC LIMIT 1",
+            (uuid,),
+        )
+        row = await cursor.fetchone()
+        if row:
+            return dict(row)
+        return None
